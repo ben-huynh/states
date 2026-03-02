@@ -16,6 +16,10 @@
     --accent: #c8780a;
     --success: #1e7e34;
     --fail: #c0392b;
+    --state-fill: #4a7fb5;
+    --state-stroke: #2d5a8a;
+    --us-fill: #d4cfc8;
+    --us-stroke: #b0a898;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -39,7 +43,7 @@
   h1 em { font-style: italic; color: var(--accent); }
   .tagline { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; }
 
-  /* ── Loading overlay ── */
+  /* ── Loading ── */
   #loading-screen {
     position: fixed; inset: 0; background: var(--bg);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -52,9 +56,7 @@
   .load-error { color: var(--fail); font-size: 0.9rem; max-width: 320px; text-align: center; line-height: 1.5; }
 
   /* ── Start screen ── */
-  #start-screen {
-    flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem 1.5rem;
-  }
+  #start-screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem 1.5rem; }
   #start-screen.hidden { display: none; }
   .start-inner { max-width: 480px; width: 100%; text-align: center; }
   .start-inner h2 { font-family: 'DM Serif Display', serif; font-size: clamp(1.8rem,5vw,3rem); margin-bottom: .6rem; line-height: 1.1; }
@@ -66,12 +68,12 @@
     padding: 1rem; cursor: pointer; transition: all .15s; text-align: left;
   }
   .mode-card:hover { border-color: var(--accent); }
-  .mode-card.sel { border-color: var(--accent); background: rgba(240,165,0,.08); box-shadow: 0 0 0 3px rgba(240,165,0,.12); }
+  .mode-card.sel { border-color: var(--accent); background: rgba(200,120,10,.07); box-shadow: 0 0 0 3px rgba(200,120,10,.1); }
   .mode-title { font-family: 'DM Serif Display', serif; font-size: 1.05rem; margin-bottom: .1rem; }
   .mode-desc { font-size: .75rem; color: var(--muted); }
 
-  /* ── Quiz layout ── */
-  #quiz-screen { flex: 1; display: flex; flex-direction: column; }
+  /* ── Quiz screen ── */
+  #quiz-screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #quiz-screen.hidden { display: none; }
 
   .scoreboard { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -82,49 +84,55 @@
   .progress-bar { height: 3px; background: var(--border); flex-shrink: 0; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, #e05c2a, var(--accent)); transition: width .5s ease; }
 
+  /* Three-column layout: state closeup | US map | inputs */
   .quiz-body {
     display: grid;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: 1fr 1fr 320px;
     flex: 1;
     min-height: 0;
+    overflow: hidden;
   }
-  @media (max-width: 700px) {
+  @media (max-width: 900px) {
+    .quiz-body { grid-template-columns: 1fr 320px; }
+    #us-panel { display: none; }
+  }
+  @media (max-width: 650px) {
     .quiz-body { grid-template-columns: 1fr; }
-    #state-panel { min-height: 240px; }
+    #state-panel { min-height: 200px; }
   }
 
-  #state-panel {
+  /* Shared map panel styles */
+  .map-panel {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 1.5rem; background: var(--bg); border-right: 1px solid var(--border);
-    position: relative; overflow: hidden;
+    padding: 1.25rem; background: var(--bg); border-right: 1px solid var(--border);
+    position: relative; overflow: hidden; min-height: 300px;
   }
-  #state-panel::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse at center, rgba(200,120,10,.08) 0%, transparent 65%);
-    opacity: 0; transition: opacity .5s; pointer-events: none;
+  .map-panel-label {
+    position: absolute; top: .7rem; left: 50%; transform: translateX(-50%);
+    font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--muted); white-space: nowrap;
+    background: var(--bg); padding: 0 .4rem;
   }
-  #state-panel.revealed::before { opacity: 1; }
+  .map-panel svg { max-width: 100%; max-height: 100%; display: block; }
+  .map-panel svg path { transition: fill .4s, stroke .4s; }
 
-  /* The SVG itself — rendered by D3 */
-  #state-panel svg {
-    max-width: 100%; max-height: 100%;
-    filter: drop-shadow(0 4px 16px rgba(0,0,0,.15));
-  }
-  #state-panel svg path {
-    transition: fill .4s, stroke .4s;
-  }
-  #state-panel.correct svg path { fill: var(--success) !important; stroke: rgba(30,126,52,.5) !important; }
-  #state-panel.incorrect svg path { fill: var(--fail) !important; stroke: rgba(192,57,43,.5) !important; }
-
+  /* State name reveal */
   .state-name-label {
-    position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
-    font-family: 'DM Serif Display', serif; font-size: 1.2rem;
+    position: absolute; bottom: .8rem; left: 50%; transform: translateX(-50%);
+    font-family: 'DM Serif Display', serif; font-size: 1.1rem;
     white-space: nowrap; opacity: 0; transition: opacity .4s .25s;
     pointer-events: none; color: var(--text);
+    background: rgba(245,242,238,.85); padding: .2rem .7rem; border-radius: 4px;
   }
-  #state-panel.revealed .state-name-label { opacity: 1; }
+  .map-panel.revealed .state-name-label { opacity: 1; }
 
-  /* Input side */
+  /* Correct/incorrect color states — applied to #state-panel only */
+  #state-panel.correct .highlight-path { fill: var(--success) !important; stroke: rgba(30,126,52,.5) !important; }
+  #state-panel.incorrect .highlight-path { fill: var(--fail) !important; stroke: rgba(192,57,43,.5) !important; }
+  #us-panel.correct .highlight-path { fill: var(--success) !important; stroke: rgba(30,126,52,.4) !important; }
+  #us-panel.incorrect .highlight-path { fill: var(--fail) !important; stroke: rgba(192,57,43,.4) !important; }
+
+  /* Input panel */
   .input-panel {
     background: var(--surface); border-left: 1px solid var(--border);
     display: flex; flex-direction: column; padding: 1.75rem; gap: 1.1rem;
@@ -141,9 +149,9 @@
     padding: .65rem .85rem; border-radius: 6px; outline: none; width: 100%;
     transition: border-color .2s, background .2s, box-shadow .2s;
   }
-  .inp-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(240,165,0,.12); }
-  .inp-group input.ok { border-color: var(--success); background: rgba(63,185,80,.07); }
-  .inp-group input.no { border-color: var(--fail); background: rgba(248,81,73,.07); }
+  .inp-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,120,10,.12); }
+  .inp-group input.ok { border-color: var(--success); background: rgba(30,126,52,.06); }
+  .inp-group input.no { border-color: var(--fail); background: rgba(192,57,43,.06); }
   .fb { font-size: .78rem; min-height: 1rem; padding-left: 2px; color: transparent; transition: color .2s; }
   .fb.ok { color: var(--success); }
   .fb.no { color: var(--fail); }
@@ -193,7 +201,7 @@
 <div id="start-screen" class="hidden">
   <div class="start-inner">
     <h2>Know Your <em>States?</em></h2>
-    <p>Each question shows the real geographic silhouette of a US state. Name the state and its capital to score points.</p>
+    <p>Each question shows the state's silhouette and its location on the US map. Name the state and its capital to score points.</p>
     <div class="mode-grid">
       <div class="mode-card" data-mode="5"><div class="mode-title">Warm-Up</div><div class="mode-desc">5 states</div></div>
       <div class="mode-card sel" data-mode="10"><div class="mode-title">Quick</div><div class="mode-desc">10 states</div></div>
@@ -213,10 +221,21 @@
   </div>
   <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
   <div class="quiz-body">
-    <div id="state-panel">
-      <!-- D3 renders SVG here -->
+
+    <!-- Left: state closeup -->
+    <div class="map-panel" id="state-panel">
+      <span class="map-panel-label">State Shape</span>
+      <div id="state-svg-wrap" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"></div>
       <div class="state-name-label" id="state-label"></div>
     </div>
+
+    <!-- Middle: US map with highlight -->
+    <div class="map-panel" id="us-panel">
+      <span class="map-panel-label">Location on US Map</span>
+      <div id="us-svg-wrap" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;"></div>
+    </div>
+
+    <!-- Right: inputs -->
     <div class="input-panel">
       <div>
         <div class="q-label">Identify this state</div>
@@ -253,12 +272,9 @@
   </div>
 </div>
 
-<!-- D3 + TopoJSON from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-
 <script>
-// ── Data ──────────────────────────────────────────────────────────────────────
 const STATES = [
   {name:"Alabama",capital:"Montgomery",fips:1},
   {name:"Alaska",capital:"Juneau",fips:2},
@@ -312,8 +328,7 @@ const STATES = [
   {name:"Wyoming",capital:"Cheyenne",fips:56},
 ];
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let usData = null;
+let usData = null, stateFeatures = null;
 let mode = 10, questions = [], current = 0, results = [], submitted = false;
 
 function shuffle(a) { return [...a].sort(() => Math.random() - 0.5); }
@@ -321,75 +336,115 @@ function norm(s) { return s.trim().toLowerCase().replace(/[^a-z ]/g, ''); }
 function match(input, answer) {
   const i = norm(input), a = norm(answer);
   if (i === a) return true;
-  // accept "st paul" for "saint paul" etc.
-  if (i.replace('saint', 'st') === a.replace('saint', 'st')) return true;
+  if (i.replace('saint','st') === a.replace('saint','st')) return true;
   return false;
 }
 function getGrade(p) {
-  if (p >= .97) return 'A+'; if (p >= .93) return 'A'; if (p >= .90) return 'A-';
-  if (p >= .87) return 'B+'; if (p >= .83) return 'B'; if (p >= .80) return 'B-';
-  if (p >= .77) return 'C+'; if (p >= .70) return 'C'; if (p >= .60) return 'D';
+  if (p>=.97) return 'A+'; if (p>=.93) return 'A'; if (p>=.90) return 'A-';
+  if (p>=.87) return 'B+'; if (p>=.83) return 'B'; if (p>=.80) return 'B-';
+  if (p>=.77) return 'C+'; if (p>=.70) return 'C'; if (p>=.60) return 'D';
   return 'F';
 }
 
 function show(id) {
   ['loading-screen','start-screen','quiz-screen','results-screen'].forEach(s => {
-    const el = document.getElementById(s);
-    if (s === id) el.classList.remove('hidden');
-    else el.classList.add('hidden');
+    document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
 
-// ── Draw state using D3 ───────────────────────────────────────────────────────
-function drawState(fips, fillColor) {
-  const panel = document.getElementById('state-panel');
-  // Remove old SVG
-  panel.querySelectorAll('svg').forEach(s => s.remove());
+// ── Draw isolated state silhouette ────────────────────────────────────────────
+function drawStateCloseup(fips, highlightColor) {
+  const wrap = document.getElementById('state-svg-wrap');
+  wrap.innerHTML = '';
 
-  if (!usData) return;
-
-  const stateFeatures = topojson.feature(usData, usData.objects.states);
   const feature = stateFeatures.features.find(f => +f.id === fips);
   if (!feature) return;
 
-  // Measure panel
-  const pw = panel.clientWidth  || 500;
-  const ph = panel.clientHeight || 400;
-  const pad = 40;
-  const W = pw, H = ph;
+  const W = wrap.clientWidth  || 420;
+  const H = wrap.clientHeight || 320;
+  const pad = 32;
 
-  // For Hawaii, use a mercator-like projection centered on it
   let projection;
   if (fips === 2) {
-    // Alaska: rotate so it looks normal (not wrapped around)
-    projection = d3.geoAlbers()
-      .rotate([154, 0])
-      .center([-2, 58.5])
-      .parallels([55, 65])
-      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+    projection = d3.geoAlbers().rotate([154,0]).center([-2,58.5]).parallels([55,65])
+      .fitExtent([[pad,pad],[W-pad,H-pad]], feature);
   } else if (fips === 15) {
-    // Hawaii
-    projection = d3.geoMercator()
-      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+    projection = d3.geoMercator().fitExtent([[pad,pad],[W-pad,H-pad]], feature);
   } else {
-    projection = d3.geoAlbers()
-      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+    projection = d3.geoAlbers().fitExtent([[pad,pad],[W-pad,H-pad]], feature);
   }
 
   const pathGen = d3.geoPath().projection(projection);
-
-  const svg = d3.select(panel)
-    .insert('svg', '.state-name-label')  // insert before the label
-    .attr('width', W)
-    .attr('height', H);
+  const svg = d3.select(wrap).append('svg').attr('width', W).attr('height', H);
 
   svg.append('path')
     .datum(feature)
     .attr('d', pathGen)
-    .attr('fill', fillColor || '#4a7fb5')
-    .attr('stroke', '#2d5a8a')
+    .attr('class', 'highlight-path')
+    .attr('fill', highlightColor || '#4a7fb5')
+    .attr('stroke', highlightColor ? 'rgba(0,0,0,.2)' : '#2d5a8a')
     .attr('stroke-width', 1.5)
-    .attr('stroke-linejoin', 'round');
+    .attr('stroke-linejoin', 'round')
+    .style('filter', 'drop-shadow(0 3px 10px rgba(0,0,0,.15))');
+}
+
+// ── Draw full US map with one state highlighted ───────────────────────────────
+function drawUSMap(fips, highlightColor) {
+  const wrap = document.getElementById('us-svg-wrap');
+  wrap.innerHTML = '';
+
+  if (!stateFeatures) return;
+
+  const W = wrap.clientWidth  || 420;
+  const H = wrap.clientHeight || 320;
+  const pad = 16;
+
+  // Standard Albers USA projection fitted to the container
+  // We manually set up Albers to cover the contiguous US
+  // For Hawaii/Alaska we still show all states but highlight correctly
+  const projection = d3.geoAlbersUsa().fitExtent([[pad,pad],[W-pad,H-pad]], stateFeatures);
+  const pathGen = d3.geoPath().projection(projection);
+
+  const svg = d3.select(wrap).append('svg').attr('width', W).attr('height', H);
+
+  // Draw all non-highlighted states first
+  svg.selectAll('path.bg-state')
+    .data(stateFeatures.features.filter(f => +f.id !== fips))
+    .enter().append('path')
+    .attr('class', 'bg-state')
+    .attr('d', pathGen)
+    .attr('fill', '#d4cfc8')
+    .attr('stroke', '#b0a898')
+    .attr('stroke-width', 0.5);
+
+  // Draw state borders
+  const mesh = topojson.mesh(usData, usData.objects.states, (a, b) => a !== b);
+  svg.append('path')
+    .datum(mesh)
+    .attr('fill', 'none')
+    .attr('stroke', '#b0a898')
+    .attr('stroke-width', 0.5);
+
+  // Draw the highlighted state on top
+  const feature = stateFeatures.features.find(f => +f.id === fips);
+  if (feature) {
+    svg.append('path')
+      .datum(feature)
+      .attr('class', 'highlight-path')
+      .attr('d', pathGen)
+      .attr('fill', highlightColor || '#4a7fb5')
+      .attr('stroke', highlightColor ? 'rgba(0,0,0,.25)' : '#2d5a8a')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-linejoin', 'round');
+  }
+}
+
+// ── Draw both maps ────────────────────────────────────────────────────────────
+function drawBoth(fips, highlightColor) {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    drawStateCloseup(fips, highlightColor);
+    drawUSMap(fips, highlightColor);
+  }));
 }
 
 // ── Quiz logic ────────────────────────────────────────────────────────────────
@@ -405,16 +460,15 @@ function loadQuestion() {
   const total = questions.length;
   const correct = results.filter(r => r && r.nOk && r.cOk).length;
 
-  // Scoreboard
   document.getElementById('sc-q').textContent = `${current+1}/${total}`;
   document.getElementById('sc-c').textContent = correct;
   document.getElementById('sc-l').textContent = total - current;
   document.getElementById('prog').style.width = `${(current/total)*100}%`;
   document.getElementById('qnum').innerHTML = `${String(current+1).padStart(2,'0')} <span>/ ${String(total).padStart(2,'0')}</span>`;
 
-  // Reset panel
-  const panel = document.getElementById('state-panel');
-  panel.className = ''; // remove correct/incorrect/revealed
+  // Reset panel states
+  document.getElementById('state-panel').className = 'map-panel';
+  document.getElementById('us-panel').className = 'map-panel';
   document.getElementById('state-label').textContent = '';
 
   // Reset inputs
@@ -432,12 +486,7 @@ function loadQuestion() {
   submitted = false;
   ni.focus();
 
-  // Draw state — use requestAnimationFrame to ensure panel is laid out
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      drawState(q.fips);
-    });
-  });
+  drawBoth(q.fips);
 }
 
 function doSubmit() {
@@ -456,25 +505,24 @@ function doSubmit() {
   ni.className = nOk ? 'ok' : 'no';
   ci.className = cOk ? 'ok' : 'no';
 
-  const nfb = document.getElementById('name-fb');
-  nfb.className = 'fb ' + (nOk ? 'ok' : 'no');
-  nfb.textContent = nOk ? '✓ Correct!' : `✗ It's ${q.name}`;
+  document.getElementById('name-fb').className = 'fb ' + (nOk ? 'ok' : 'no');
+  document.getElementById('name-fb').textContent = nOk ? '✓ Correct!' : `✗ It's ${q.name}`;
+  document.getElementById('cap-fb').className = 'fb ' + (cOk ? 'ok' : 'no');
+  document.getElementById('cap-fb').textContent = cOk ? '✓ Correct!' : `✗ It's ${q.capital}`;
 
-  const cfb = document.getElementById('cap-fb');
-  cfb.className = 'fb ' + (cOk ? 'ok' : 'no');
-  cfb.textContent = cOk ? '✓ Correct!' : `✗ It's ${q.capital}`;
+  const color = nOk && cOk ? 'var(--success)' : 'var(--fail)';
+  const resultClass = nOk && cOk ? 'correct' : 'incorrect';
 
-  const panel = document.getElementById('state-panel');
-  panel.classList.add('revealed');
-  panel.classList.add(nOk && cOk ? 'correct' : 'incorrect');
+  // Add result class to both panels for CSS-driven recoloring
+  document.getElementById('state-panel').classList.add('revealed', resultClass);
+  document.getElementById('us-panel').classList.add(resultClass);
   document.getElementById('state-label').textContent = q.name;
 
-  // Recolor the path
-  const path = panel.querySelector('path');
-  if (path) {
-    path.style.fill = nOk && cOk ? 'var(--success)' : 'var(--fail)';
-    path.style.stroke = nOk && cOk ? 'rgba(30,126,52,.5)' : 'rgba(192,57,43,.5)';
-  }
+  // Also directly recolor existing paths for immediate feedback
+  document.querySelectorAll('.highlight-path').forEach(p => {
+    p.style.fill = nOk && cOk ? '#1e7e34' : '#c0392b';
+    p.style.stroke = nOk && cOk ? 'rgba(30,126,52,.5)' : 'rgba(192,57,43,.5)';
+  });
 
   document.getElementById('action-btn').textContent =
     current < questions.length - 1 ? 'Next State →' : 'See Results →';
@@ -488,7 +536,7 @@ function doNext() {
 
 function showResults() {
   const total = questions.length * 2;
-  const got = results.reduce((a, r) => a + (r?.nOk ? 1 : 0) + (r?.cOk ? 1 : 0), 0);
+  const got = results.reduce((a, r) => a + (r?.nOk?1:0) + (r?.cOk?1:0), 0);
   const pct = got / total;
   document.getElementById('grade-letter').textContent = getGrade(pct);
   document.getElementById('grade-sub').textContent = `${got} / ${total} points · ${Math.round(pct*100)}%`;
@@ -496,23 +544,20 @@ function showResults() {
   const rows = results.map((r, i) => {
     const q = questions[i];
     return `<div class="r-row">
-      <div>${q.name}</div>
-      <div>${q.capital}</div>
+      <div>${q.name}</div><div>${q.capital}</div>
       <div class="${r?.nOk?'ok-t':'no-t'}">${r?.nOk?'✓':'✗'}</div>
       <div class="${r?.cOk?'ok-t':'no-t'}">${r?.cOk?'✓':'✗'}</div>
     </div>`;
   }).join('');
 
   document.getElementById('res-table').innerHTML = `
-    <div class="r-row hdr"><div>State</div><div>Capital</div><div>Name</div><div>Capital</div></div>
-    ${rows}`;
+    <div class="r-row hdr"><div>State</div><div>Capital</div><div>Name</div><div>Capital</div></div>${rows}`;
   show('results-screen');
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 show('loading-screen');
 
-// Load D3 + TopoJSON data
 function waitForLibs(cb) {
   if (typeof d3 !== 'undefined' && typeof topojson !== 'undefined') cb();
   else setTimeout(() => waitForLibs(cb), 50);
@@ -521,28 +566,24 @@ function waitForLibs(cb) {
 waitForLibs(() => {
   document.getElementById('load-msg').textContent = 'Fetching US map data…';
   fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json')
-    .then(r => {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    })
+    .then(r => { if (!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
     .then(data => {
       usData = data;
+      stateFeatures = topojson.feature(usData, usData.objects.states);
       show('start-screen');
     })
-    .catch(err => {
-      const loadScreen = document.getElementById('loading-screen');
-      loadScreen.innerHTML = `
+    .catch(() => {
+      document.getElementById('loading-screen').innerHTML = `
         <div class="load-error">
           <strong style="color:var(--fail)">Failed to load map data.</strong><br><br>
-          This quiz requires an internet connection to fetch US geographic data from
-          <code>cdn.jsdelivr.net</code>.<br><br>
-          Please check your connection and reload the page.
+          This quiz requires an internet connection to fetch US geographic boundary data.
+          Please check your connection and reload.
         </div>
         <button class="btn btn-primary" style="margin-top:1rem" onclick="location.reload()">Retry</button>`;
     });
 });
 
-// ── Event bindings ────────────────────────────────────────────────────────────
+// ── Events ────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.mode-card').forEach(c => {
   c.addEventListener('click', () => {
     document.querySelectorAll('.mode-card').forEach(x => x.classList.remove('sel'));
@@ -550,20 +591,11 @@ document.querySelectorAll('.mode-card').forEach(c => {
     mode = parseInt(c.dataset.mode);
   });
 });
-
 document.getElementById('startBtn').addEventListener('click', startQuiz);
-
-document.getElementById('action-btn').addEventListener('click', () => {
-  if (!submitted) doSubmit();
-  else doNext();
+document.getElementById('action-btn').addEventListener('click', () => { if (!submitted) doSubmit(); else doNext(); });
+['name-input','cap-input'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter' && !submitted) doSubmit(); });
 });
-
-['name-input', 'cap-input'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !submitted) doSubmit();
-  });
-});
-
 document.getElementById('retry-btn').addEventListener('click', startQuiz);
 document.getElementById('change-btn').addEventListener('click', () => show('start-screen'));
 </script>
