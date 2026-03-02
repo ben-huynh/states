@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>50 States Quiz</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f2ee;
+    --surface: #ffffff;
+    --surface2: #f0ede8;
+    --border: #ddd8d0;
+    --text: #1a1a2e;
+    --muted: #7a7060;
+    --accent: #c8780a;
+    --success: #1e7e34;
+    --fail: #c0392b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 1.1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  h1 { font-family: 'DM Serif Display', serif; font-size: 1.7rem; line-height: 1; }
+  h1 em { font-style: italic; color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; }
+
+  /* ── Loading overlay ── */
+  #loading-screen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; z-index: 100; color: var(--text);
+  }
+  #loading-screen.hidden { display: none; }
+  .spinner { width: 36px; height: 36px; border: 2.5px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-text { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.1em; }
+  .load-error { color: var(--fail); font-size: 0.9rem; max-width: 320px; text-align: center; line-height: 1.5; }
+
+  /* ── Start screen ── */
+  #start-screen {
+    flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem 1.5rem;
+  }
+  #start-screen.hidden { display: none; }
+  .start-inner { max-width: 480px; width: 100%; text-align: center; }
+  .start-inner h2 { font-family: 'DM Serif Display', serif; font-size: clamp(1.8rem,5vw,3rem); margin-bottom: .6rem; line-height: 1.1; }
+  .start-inner h2 em { font-style: italic; color: var(--accent); }
+  .start-inner p { color: var(--muted); line-height: 1.7; margin-bottom: 2rem; font-size: .9rem; }
+  .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-bottom: 1.75rem; }
+  .mode-card {
+    background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px;
+    padding: 1rem; cursor: pointer; transition: all .15s; text-align: left;
+  }
+  .mode-card:hover { border-color: var(--accent); }
+  .mode-card.sel { border-color: var(--accent); background: rgba(240,165,0,.08); box-shadow: 0 0 0 3px rgba(240,165,0,.12); }
+  .mode-title { font-family: 'DM Serif Display', serif; font-size: 1.05rem; margin-bottom: .1rem; }
+  .mode-desc { font-size: .75rem; color: var(--muted); }
+
+  /* ── Quiz layout ── */
+  #quiz-screen { flex: 1; display: flex; flex-direction: column; }
+  #quiz-screen.hidden { display: none; }
+
+  .scoreboard { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .score-item { flex: 1; text-align: center; padding: .6rem; border-right: 1px solid var(--border); }
+  .score-item:last-child { border-right: none; }
+  .score-num { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--accent); line-height: 1; }
+  .score-label { font-size: .57rem; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+  .progress-bar { height: 3px; background: var(--border); flex-shrink: 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #e05c2a, var(--accent)); transition: width .5s ease; }
+
+  .quiz-body {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    flex: 1;
+    min-height: 0;
+  }
+  @media (max-width: 700px) {
+    .quiz-body { grid-template-columns: 1fr; }
+    #state-panel { min-height: 240px; }
+  }
+
+  #state-panel {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 1.5rem; background: var(--bg); border-right: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  #state-panel::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(200,120,10,.08) 0%, transparent 65%);
+    opacity: 0; transition: opacity .5s; pointer-events: none;
+  }
+  #state-panel.revealed::before { opacity: 1; }
+
+  /* The SVG itself — rendered by D3 */
+  #state-panel svg {
+    max-width: 100%; max-height: 100%;
+    filter: drop-shadow(0 4px 16px rgba(0,0,0,.15));
+  }
+  #state-panel svg path {
+    transition: fill .4s, stroke .4s;
+  }
+  #state-panel.correct svg path { fill: var(--success) !important; stroke: rgba(30,126,52,.5) !important; }
+  #state-panel.incorrect svg path { fill: var(--fail) !important; stroke: rgba(192,57,43,.5) !important; }
+
+  .state-name-label {
+    position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
+    font-family: 'DM Serif Display', serif; font-size: 1.2rem;
+    white-space: nowrap; opacity: 0; transition: opacity .4s .25s;
+    pointer-events: none; color: var(--text);
+  }
+  #state-panel.revealed .state-name-label { opacity: 1; }
+
+  /* Input side */
+  .input-panel {
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 1.75rem; gap: 1.1rem;
+    overflow-y: auto;
+  }
+  .q-label { font-size: .6rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+  .q-num { font-family: 'DM Serif Display', serif; font-size: 2rem; line-height: 1; }
+  .q-num span { color: var(--accent); }
+  .inp-group { display: flex; flex-direction: column; gap: .32rem; }
+  .inp-group label { font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .inp-group input {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: .95rem;
+    padding: .65rem .85rem; border-radius: 6px; outline: none; width: 100%;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+  }
+  .inp-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(240,165,0,.12); }
+  .inp-group input.ok { border-color: var(--success); background: rgba(63,185,80,.07); }
+  .inp-group input.no { border-color: var(--fail); background: rgba(248,81,73,.07); }
+  .fb { font-size: .78rem; min-height: 1rem; padding-left: 2px; color: transparent; transition: color .2s; }
+  .fb.ok { color: var(--success); }
+  .fb.no { color: var(--fail); }
+  .spacer { flex: 1; min-height: .5rem; }
+  .btn {
+    padding: .78rem 1.5rem; font-family: 'DM Sans', sans-serif; font-size: .8rem;
+    font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+    border: none; border-radius: 6px; cursor: pointer; transition: all .15s; width: 100%;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #a8620a; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(200,120,10,.25); }
+  .btn-primary:active { transform: none; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Results */
+  #results-screen { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 2.5rem 1.5rem; overflow-y: auto; }
+  #results-screen.hidden { display: none; }
+  .results-inner { max-width: 640px; width: 100%; }
+  .grade-block { text-align: center; margin-bottom: 2rem; }
+  .grade-letter { font-family: 'DM Serif Display', serif; font-size: 7rem; line-height: 1; color: var(--accent); }
+  .grade-sub { color: var(--muted); margin-top: .2rem; }
+  .res-table { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 1.25rem; max-height: 380px; overflow-y: auto; }
+  .r-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: .5rem; padding: .6rem 1rem; border-bottom: 1px solid var(--border); font-size: .83rem; align-items: center; }
+  .r-row:last-child { border-bottom: none; }
+  .r-row.hdr { background: var(--surface2); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .ok-t { color: var(--success); font-weight: 600; }
+  .no-t { color: var(--fail); font-weight: 600; }
+  .act-row { display: flex; gap: .75rem; }
+  .act-row .btn { flex: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>50 <em>States</em></h1>
+  <span class="tagline">Geography Quiz</span>
+</header>
+
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="load-text" id="load-msg">Loading map data…</div>
+</div>
+
+<!-- Start -->
+<div id="start-screen" class="hidden">
+  <div class="start-inner">
+    <h2>Know Your <em>States?</em></h2>
+    <p>Each question shows the real geographic silhouette of a US state. Name the state and its capital to score points.</p>
+    <div class="mode-grid">
+      <div class="mode-card" data-mode="5"><div class="mode-title">Warm-Up</div><div class="mode-desc">5 states</div></div>
+      <div class="mode-card sel" data-mode="10"><div class="mode-title">Quick</div><div class="mode-desc">10 states</div></div>
+      <div class="mode-card" data-mode="25"><div class="mode-title">Half</div><div class="mode-desc">25 states</div></div>
+      <div class="mode-card" data-mode="50"><div class="mode-title">All 50</div><div class="mode-desc">Full challenge</div></div>
+    </div>
+    <button class="btn btn-primary" id="startBtn">Start Quiz →</button>
+  </div>
+</div>
+
+<!-- Quiz -->
+<div id="quiz-screen" class="hidden">
+  <div class="scoreboard">
+    <div class="score-item"><div class="score-num" id="sc-q">1</div><div class="score-label">Question</div></div>
+    <div class="score-item"><div class="score-num" id="sc-c">0</div><div class="score-label">Correct</div></div>
+    <div class="score-item"><div class="score-num" id="sc-l">10</div><div class="score-label">Left</div></div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+  <div class="quiz-body">
+    <div id="state-panel">
+      <!-- D3 renders SVG here -->
+      <div class="state-name-label" id="state-label"></div>
+    </div>
+    <div class="input-panel">
+      <div>
+        <div class="q-label">Identify this state</div>
+        <div class="q-num" id="qnum">01 <span>/ 10</span></div>
+      </div>
+      <div class="inp-group">
+        <label>State Name</label>
+        <input type="text" id="name-input" placeholder="Type state name…" autocomplete="off">
+        <div class="fb" id="name-fb"> </div>
+      </div>
+      <div class="inp-group">
+        <label>State Capital</label>
+        <input type="text" id="cap-input" placeholder="Type capital city…" autocomplete="off">
+        <div class="fb" id="cap-fb"> </div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="action-btn">Submit Answer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="results-screen" class="hidden">
+  <div class="results-inner">
+    <div class="grade-block">
+      <div class="grade-letter" id="grade-letter">A</div>
+      <div class="grade-sub" id="grade-sub">0 / 0 points</div>
+    </div>
+    <div class="res-table" id="res-table"></div>
+    <div class="act-row">
+      <button class="btn btn-primary" id="retry-btn">Play Again</button>
+      <button class="btn btn-ghost" id="change-btn">Change Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- D3 + TopoJSON from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const STATES = [
+  {name:"Alabama",capital:"Montgomery",fips:1},
+  {name:"Alaska",capital:"Juneau",fips:2},
+  {name:"Arizona",capital:"Phoenix",fips:4},
+  {name:"Arkansas",capital:"Little Rock",fips:5},
+  {name:"California",capital:"Sacramento",fips:6},
+  {name:"Colorado",capital:"Denver",fips:8},
+  {name:"Connecticut",capital:"Hartford",fips:9},
+  {name:"Delaware",capital:"Dover",fips:10},
+  {name:"Florida",capital:"Tallahassee",fips:12},
+  {name:"Georgia",capital:"Atlanta",fips:13},
+  {name:"Hawaii",capital:"Honolulu",fips:15},
+  {name:"Idaho",capital:"Boise",fips:16},
+  {name:"Illinois",capital:"Springfield",fips:17},
+  {name:"Indiana",capital:"Indianapolis",fips:18},
+  {name:"Iowa",capital:"Des Moines",fips:19},
+  {name:"Kansas",capital:"Topeka",fips:20},
+  {name:"Kentucky",capital:"Frankfort",fips:21},
+  {name:"Louisiana",capital:"Baton Rouge",fips:22},
+  {name:"Maine",capital:"Augusta",fips:23},
+  {name:"Maryland",capital:"Annapolis",fips:24},
+  {name:"Massachusetts",capital:"Boston",fips:25},
+  {name:"Michigan",capital:"Lansing",fips:26},
+  {name:"Minnesota",capital:"Saint Paul",fips:27},
+  {name:"Mississippi",capital:"Jackson",fips:28},
+  {name:"Missouri",capital:"Jefferson City",fips:29},
+  {name:"Montana",capital:"Helena",fips:30},
+  {name:"Nebraska",capital:"Lincoln",fips:31},
+  {name:"Nevada",capital:"Carson City",fips:32},
+  {name:"New Hampshire",capital:"Concord",fips:33},
+  {name:"New Jersey",capital:"Trenton",fips:34},
+  {name:"New Mexico",capital:"Santa Fe",fips:35},
+  {name:"New York",capital:"Albany",fips:36},
+  {name:"North Carolina",capital:"Raleigh",fips:37},
+  {name:"North Dakota",capital:"Bismarck",fips:38},
+  {name:"Ohio",capital:"Columbus",fips:39},
+  {name:"Oklahoma",capital:"Oklahoma City",fips:40},
+  {name:"Oregon",capital:"Salem",fips:41},
+  {name:"Pennsylvania",capital:"Harrisburg",fips:42},
+  {name:"Rhode Island",capital:"Providence",fips:44},
+  {name:"South Carolina",capital:"Columbia",fips:45},
+  {name:"South Dakota",capital:"Pierre",fips:46},
+  {name:"Tennessee",capital:"Nashville",fips:47},
+  {name:"Texas",capital:"Austin",fips:48},
+  {name:"Utah",capital:"Salt Lake City",fips:49},
+  {name:"Vermont",capital:"Montpelier",fips:50},
+  {name:"Virginia",capital:"Richmond",fips:51},
+  {name:"Washington",capital:"Olympia",fips:53},
+  {name:"West Virginia",capital:"Charleston",fips:54},
+  {name:"Wisconsin",capital:"Madison",fips:55},
+  {name:"Wyoming",capital:"Cheyenne",fips:56},
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let usData = null;
+let mode = 10, questions = [], current = 0, results = [], submitted = false;
+
+function shuffle(a) { return [...a].sort(() => Math.random() - 0.5); }
+function norm(s) { return s.trim().toLowerCase().replace(/[^a-z ]/g, ''); }
+function match(input, answer) {
+  const i = norm(input), a = norm(answer);
+  if (i === a) return true;
+  // accept "st paul" for "saint paul" etc.
+  if (i.replace('saint', 'st') === a.replace('saint', 'st')) return true;
+  return false;
+}
+function getGrade(p) {
+  if (p >= .97) return 'A+'; if (p >= .93) return 'A'; if (p >= .90) return 'A-';
+  if (p >= .87) return 'B+'; if (p >= .83) return 'B'; if (p >= .80) return 'B-';
+  if (p >= .77) return 'C+'; if (p >= .70) return 'C'; if (p >= .60) return 'D';
+  return 'F';
+}
+
+function show(id) {
+  ['loading-screen','start-screen','quiz-screen','results-screen'].forEach(s => {
+    const el = document.getElementById(s);
+    if (s === id) el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+}
+
+// ── Draw state using D3 ───────────────────────────────────────────────────────
+function drawState(fips, fillColor) {
+  const panel = document.getElementById('state-panel');
+  // Remove old SVG
+  panel.querySelectorAll('svg').forEach(s => s.remove());
+
+  if (!usData) return;
+
+  const stateFeatures = topojson.feature(usData, usData.objects.states);
+  const feature = stateFeatures.features.find(f => +f.id === fips);
+  if (!feature) return;
+
+  // Measure panel
+  const pw = panel.clientWidth  || 500;
+  const ph = panel.clientHeight || 400;
+  const pad = 40;
+  const W = pw, H = ph;
+
+  // For Hawaii, use a mercator-like projection centered on it
+  let projection;
+  if (fips === 2) {
+    // Alaska: rotate so it looks normal (not wrapped around)
+    projection = d3.geoAlbers()
+      .rotate([154, 0])
+      .center([-2, 58.5])
+      .parallels([55, 65])
+      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+  } else if (fips === 15) {
+    // Hawaii
+    projection = d3.geoMercator()
+      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+  } else {
+    projection = d3.geoAlbers()
+      .fitExtent([[pad, pad], [W - pad, H - pad]], feature);
+  }
+
+  const pathGen = d3.geoPath().projection(projection);
+
+  const svg = d3.select(panel)
+    .insert('svg', '.state-name-label')  // insert before the label
+    .attr('width', W)
+    .attr('height', H);
+
+  svg.append('path')
+    .datum(feature)
+    .attr('d', pathGen)
+    .attr('fill', fillColor || '#4a7fb5')
+    .attr('stroke', '#2d5a8a')
+    .attr('stroke-width', 1.5)
+    .attr('stroke-linejoin', 'round');
+}
+
+// ── Quiz logic ────────────────────────────────────────────────────────────────
+function startQuiz() {
+  questions = shuffle(STATES).slice(0, mode);
+  current = 0; results = []; submitted = false;
+  show('quiz-screen');
+  loadQuestion();
+}
+
+function loadQuestion() {
+  const q = questions[current];
+  const total = questions.length;
+  const correct = results.filter(r => r && r.nOk && r.cOk).length;
+
+  // Scoreboard
+  document.getElementById('sc-q').textContent = `${current+1}/${total}`;
+  document.getElementById('sc-c').textContent = correct;
+  document.getElementById('sc-l').textContent = total - current;
+  document.getElementById('prog').style.width = `${(current/total)*100}%`;
+  document.getElementById('qnum').innerHTML = `${String(current+1).padStart(2,'0')} <span>/ ${String(total).padStart(2,'0')}</span>`;
+
+  // Reset panel
+  const panel = document.getElementById('state-panel');
+  panel.className = ''; // remove correct/incorrect/revealed
+  document.getElementById('state-label').textContent = '';
+
+  // Reset inputs
+  const ni = document.getElementById('name-input');
+  const ci = document.getElementById('cap-input');
+  ni.value = ''; ci.value = '';
+  ni.className = ''; ci.className = '';
+  ni.disabled = false; ci.disabled = false;
+  document.getElementById('name-fb').className = 'fb';
+  document.getElementById('name-fb').textContent = ' ';
+  document.getElementById('cap-fb').className = 'fb';
+  document.getElementById('cap-fb').textContent = ' ';
+  document.getElementById('action-btn').textContent = 'Submit Answer';
+
+  submitted = false;
+  ni.focus();
+
+  // Draw state — use requestAnimationFrame to ensure panel is laid out
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      drawState(q.fips);
+    });
+  });
+}
+
+function doSubmit() {
+  if (submitted) return;
+  const q = questions[current];
+  const nv = document.getElementById('name-input').value;
+  const cv = document.getElementById('cap-input').value;
+  const nOk = match(nv, q.name);
+  const cOk = match(cv, q.capital);
+  results[current] = { nv, cv, nOk, cOk };
+  submitted = true;
+
+  const ni = document.getElementById('name-input');
+  const ci = document.getElementById('cap-input');
+  ni.disabled = true; ci.disabled = true;
+  ni.className = nOk ? 'ok' : 'no';
+  ci.className = cOk ? 'ok' : 'no';
+
+  const nfb = document.getElementById('name-fb');
+  nfb.className = 'fb ' + (nOk ? 'ok' : 'no');
+  nfb.textContent = nOk ? '✓ Correct!' : `✗ It's ${q.name}`;
+
+  const cfb = document.getElementById('cap-fb');
+  cfb.className = 'fb ' + (cOk ? 'ok' : 'no');
+  cfb.textContent = cOk ? '✓ Correct!' : `✗ It's ${q.capital}`;
+
+  const panel = document.getElementById('state-panel');
+  panel.classList.add('revealed');
+  panel.classList.add(nOk && cOk ? 'correct' : 'incorrect');
+  document.getElementById('state-label').textContent = q.name;
+
+  // Recolor the path
+  const path = panel.querySelector('path');
+  if (path) {
+    path.style.fill = nOk && cOk ? 'var(--success)' : 'var(--fail)';
+    path.style.stroke = nOk && cOk ? 'rgba(30,126,52,.5)' : 'rgba(192,57,43,.5)';
+  }
+
+  document.getElementById('action-btn').textContent =
+    current < questions.length - 1 ? 'Next State →' : 'See Results →';
+}
+
+function doNext() {
+  current++;
+  if (current >= questions.length) showResults();
+  else loadQuestion();
+}
+
+function showResults() {
+  const total = questions.length * 2;
+  const got = results.reduce((a, r) => a + (r?.nOk ? 1 : 0) + (r?.cOk ? 1 : 0), 0);
+  const pct = got / total;
+  document.getElementById('grade-letter').textContent = getGrade(pct);
+  document.getElementById('grade-sub').textContent = `${got} / ${total} points · ${Math.round(pct*100)}%`;
+
+  const rows = results.map((r, i) => {
+    const q = questions[i];
+    return `<div class="r-row">
+      <div>${q.name}</div>
+      <div>${q.capital}</div>
+      <div class="${r?.nOk?'ok-t':'no-t'}">${r?.nOk?'✓':'✗'}</div>
+      <div class="${r?.cOk?'ok-t':'no-t'}">${r?.cOk?'✓':'✗'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('res-table').innerHTML = `
+    <div class="r-row hdr"><div>State</div><div>Capital</div><div>Name</div><div>Capital</div></div>
+    ${rows}`;
+  show('results-screen');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+show('loading-screen');
+
+// Load D3 + TopoJSON data
+function waitForLibs(cb) {
+  if (typeof d3 !== 'undefined' && typeof topojson !== 'undefined') cb();
+  else setTimeout(() => waitForLibs(cb), 50);
+}
+
+waitForLibs(() => {
+  document.getElementById('load-msg').textContent = 'Fetching US map data…';
+  fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json')
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(data => {
+      usData = data;
+      show('start-screen');
+    })
+    .catch(err => {
+      const loadScreen = document.getElementById('loading-screen');
+      loadScreen.innerHTML = `
+        <div class="load-error">
+          <strong style="color:var(--fail)">Failed to load map data.</strong><br><br>
+          This quiz requires an internet connection to fetch US geographic data from
+          <code>cdn.jsdelivr.net</code>.<br><br>
+          Please check your connection and reload the page.
+        </div>
+        <button class="btn btn-primary" style="margin-top:1rem" onclick="location.reload()">Retry</button>`;
+    });
+});
+
+// ── Event bindings ────────────────────────────────────────────────────────────
+document.querySelectorAll('.mode-card').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('.mode-card').forEach(x => x.classList.remove('sel'));
+    c.classList.add('sel');
+    mode = parseInt(c.dataset.mode);
+  });
+});
+
+document.getElementById('startBtn').addEventListener('click', startQuiz);
+
+document.getElementById('action-btn').addEventListener('click', () => {
+  if (!submitted) doSubmit();
+  else doNext();
+});
+
+['name-input', 'cap-input'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !submitted) doSubmit();
+  });
+});
+
+document.getElementById('retry-btn').addEventListener('click', startQuiz);
+document.getElementById('change-btn').addEventListener('click', () => show('start-screen'));
+</script>
+</body>
+</html>
